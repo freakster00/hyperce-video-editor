@@ -4,16 +4,16 @@
 
 :root {
   color-scheme: dark;
-  --background: #0b1423;
-  --surface: #111b2b;
-  --surface-raised: #1b2a3c;
-  --border: #2b3b50;
+  --background: #07131f;
+  --surface: #0d202b;
+  --surface-raised: #173641;
+  --border: #28555f;
   --text: #f7faff;
-  --muted: #9aa8bb;
-  --primary: #3f8d9a;
-  --secondary: #58bccb;
+  --muted: #a9bbc3;
+  --primary: #ffd91a;
+  --secondary: #3a838d;
   --success: #20c98b;
-  --warning: #ffd400;
+  --warning: #ffd91a;
   --danger: #ff5c7a;
 }
 
@@ -53,16 +53,16 @@ button {
 }
 
 ::-webkit-scrollbar-track {
-  background: #0e1828;
+  background: #0a1a24;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #314158;
+  background: #28555f;
   border-radius: 999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #3f5068;
+  background: #3a838d;
 }
 
 .editor-app {
@@ -74,7 +74,8 @@ button {
   max-height: 100dvh;
   overflow: hidden;
   background:
-    linear-gradient(180deg, rgba(27, 42, 60, 0.68) 0%, rgba(11, 20, 35, 0) 34%),
+    radial-gradient(circle at 78% 8%, rgba(58, 131, 141, 0.18), transparent 32%),
+    linear-gradient(180deg, rgba(18, 42, 53, 0.72) 0%, rgba(7, 19, 31, 0) 34%),
     var(--background);
 }
 
@@ -90,7 +91,7 @@ button {
 .panel {
   min-width: 0;
   min-height: 0;
-  background: rgba(17, 27, 43, 0.95);
+  background: rgba(13, 32, 43, 0.95);
 }
 
 .left-panel {
@@ -129,7 +130,7 @@ button {
   width: 100%;
   border: 1px solid var(--border);
   border-radius: 8px;
-  background: #0f1929;
+  background: #0a1a24;
   color: var(--text);
   outline: none;
   transition:
@@ -138,8 +139,8 @@ button {
 }
 
 .field:focus {
-  border-color: rgba(88, 188, 203, 0.72);
-  box-shadow: 0 0 0 3px rgba(88, 188, 203, 0.13);
+  border-color: rgba(58, 131, 141, 0.78);
+  box-shadow: 0 0 0 3px rgba(58, 131, 141, 0.18);
 }
 
 .icon-button,
@@ -151,7 +152,7 @@ button {
   border: 1px solid var(--border);
   border-radius: 8px;
   color: var(--text);
-  background: #142033;
+  background: #102532;
   transition:
     transform 150ms ease,
     border-color 150ms ease,
@@ -171,17 +172,19 @@ button {
 .icon-button:hover,
 .command-button:hover {
   transform: translateY(-1px);
-  border-color: #466178;
-  background: #1a2a3f;
+  border-color: #3a838d;
+  background: #173641;
 }
 
 .command-primary {
-  border-color: rgba(88, 188, 203, 0.78);
-  background: linear-gradient(180deg, rgba(70, 154, 168, 0.96), rgba(49, 122, 136, 0.96));
+  border-color: rgba(255, 217, 26, 0.82);
+  color: #07131f;
+  background: linear-gradient(180deg, rgba(255, 223, 52, 0.98), rgba(244, 193, 22, 0.98));
+  box-shadow: 0 12px 30px rgba(255, 217, 26, 0.12);
 }
 
 .command-secondary {
-  border-color: rgba(88, 188, 203, 0.52);
+  border-color: rgba(58, 131, 141, 0.68);
 }
 
 .pulse-active {
@@ -191,10 +194,10 @@ button {
 @keyframes generation-pulse {
   0%,
   100% {
-    box-shadow: 0 0 0 0 rgba(88, 188, 203, 0.24);
+    box-shadow: 0 0 0 0 rgba(255, 217, 26, 0.23);
   }
   50% {
-    box-shadow: 0 0 0 8px rgba(88, 188, 203, 0), 0 0 28px rgba(63, 141, 154, 0.34);
+    box-shadow: 0 0 0 8px rgba(255, 217, 26, 0), 0 0 28px rgba(58, 131, 141, 0.36);
   }
 }
 
@@ -202,7 +205,7 @@ button {
   position: relative;
   overflow: hidden;
   border-radius: 8px;
-  background: #162233;
+  background: #122a35;
   isolation: isolate;
 }
 
@@ -229,8 +232,8 @@ button {
 
 .visual-frame[data-visual="neon"] {
   background:
-    linear-gradient(140deg, #0b1728 0%, #12334a 48%, #0c2635 100%),
-    repeating-linear-gradient(0deg, rgba(88, 188, 203, 0.25) 0 2px, transparent 2px 26px);
+    linear-gradient(140deg, #081522 0%, #153f47 48%, #0b2832 100%),
+    repeating-linear-gradient(0deg, rgba(255, 217, 26, 0.16) 0 2px, transparent 2px 26px);
 }
 
 .visual-frame[data-visual="alpine"] {
@@ -241,7 +244,7 @@ button {
 
 .visual-frame[data-visual="studio"] {
   background:
-    linear-gradient(145deg, #0b111d 0%, #2d3c4f 58%, #5ab8c7 100%),
+    linear-gradient(145deg, #07131f 0%, #224954 58%, #3a838d 100%),
     repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0 1px, transparent 1px 16px);
 }
 
@@ -266,13 +269,13 @@ button {
 .timeline-ruler {
   background:
     repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.09) 0 1px, transparent 1px 48px),
-    #0f1929;
+    #0a1a24;
 }
 
 .timeline-track-grid {
   background:
     repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.06) 0 1px, transparent 1px 48px),
-    linear-gradient(180deg, #0f1929, #0b1423);
+    linear-gradient(180deg, #0a1a24, #07131f);
 }
 
 .timeline-playhead {
@@ -281,7 +284,7 @@ button {
   bottom: 0;
   width: 2px;
   background: var(--secondary);
-  box-shadow: 0 0 14px rgba(88, 188, 203, 0.62);
+  box-shadow: 0 0 14px rgba(58, 131, 141, 0.7);
   pointer-events: none;
   z-index: 8;
 }
@@ -294,7 +297,7 @@ button {
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-left-width: 4px;
   border-radius: 6px;
-  background: #1b2a3c;
+  background: #173641;
   overflow: hidden;
 }
 

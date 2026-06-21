@@ -371,7 +371,7 @@ export function SoraEditor() {
       }
 
       if (status === "failed") {
-        dispatch({ type: "FAIL_JOB", jobId, error: "Sora generation failed." });
+        dispatch({ type: "FAIL_JOB", jobId, error: "Video generation failed." });
         return;
       }
     }
@@ -752,8 +752,12 @@ function TopBar({
 
   return (
     <header className="flex min-w-0 items-center gap-3 border-b border-space-700 bg-space-950/95 px-3">
-      <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-cyanline/40 bg-space-900">
-        <Film size={18} className="text-cyanline" />
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-cyanline/50 bg-cyanline/20">
+        <img
+          src="/hyperce-logo.png"
+          alt="Hyperce"
+          className="h-full w-full object-cover"
+        />
       </div>
       <div className="min-w-0">
         <div className="font-display text-sm font-semibold tracking-normal">Hyperce Editor</div>
@@ -1358,7 +1362,7 @@ function SettingsPanel() {
       <label className="flex items-center justify-between rounded-lg border border-space-700 bg-space-950 p-3 text-sm">
         <span>
           <span className="block font-medium">Mock generation</span>
-          <span className="block text-xs text-muted">Keep the editor usable without Sora access.</span>
+          <span className="block text-xs text-muted">Keep the editor usable without model access.</span>
         </span>
         <input
           type="checkbox"

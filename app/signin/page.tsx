@@ -2,7 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Film, Loader2, LockKeyhole } from "lucide-react";
+import { Loader2, LockKeyhole } from "lucide-react";
 
 export default function SignInPage() {
   const router = useRouter();
@@ -39,25 +39,29 @@ export default function SignInPage() {
   }
 
   return (
-    <main className="grid min-h-screen min-h-[100dvh] place-items-center bg-space-950 p-4">
+    <main className="grid min-h-screen min-h-[100dvh] place-items-center bg-space-950 p-6">
       <form
-        className="w-full max-w-sm rounded-lg border border-space-700 bg-space-900 p-5 shadow-panel"
+        className="w-full max-w-[520px] rounded-lg border border-space-700 bg-space-900 p-8 shadow-panel"
         onSubmit={handleSubmit}
       >
-        <div className="mb-5 flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-cyanline/40 bg-space-950">
-            <Film size={18} className="text-cyanline" />
+        <div className="mb-8 flex items-center gap-5">
+          <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-cyanline/50 bg-cyanline/20">
+            <img
+              src="/hyperce-logo.png"
+              alt="Hyperce"
+              className="h-full w-full object-cover"
+            />
           </div>
           <div>
-            <h1 className="font-display text-lg font-semibold tracking-normal">Hyperce Editor</h1>
-            <p className="text-xs text-muted">Sign in to continue</p>
+            <h1 className="font-display text-2xl font-semibold tracking-normal">Hyperce Editor</h1>
+            <p className="mt-1 text-sm text-muted">Sign in to continue</p>
           </div>
         </div>
 
-        <label className="mb-3 block space-y-1 text-xs text-muted">
+        <label className="mb-5 block space-y-2 text-sm text-muted">
           Username or email
           <input
-            className="field h-10 px-3 text-sm"
+            className="field h-12 px-4 text-base"
             value={username}
             autoComplete="username"
             onChange={(event) => setUsername(event.target.value)}
@@ -65,10 +69,10 @@ export default function SignInPage() {
           />
         </label>
 
-        <label className="mb-4 block space-y-1 text-xs text-muted">
+        <label className="mb-6 block space-y-2 text-sm text-muted">
           Password
           <input
-            className="field h-10 px-3 text-sm"
+            className="field h-12 px-4 text-base"
             type="password"
             value={password}
             autoComplete="current-password"
@@ -84,7 +88,7 @@ export default function SignInPage() {
         ) : null}
 
         <button
-          className="command-button command-primary min-h-11 w-full text-sm font-semibold"
+          className="command-button command-primary min-h-12 w-full text-base font-semibold"
           disabled={submitting}
         >
           {submitting ? <Loader2 size={16} className="animate-spin" /> : <LockKeyhole size={16} />}

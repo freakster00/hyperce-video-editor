@@ -10,20 +10,20 @@ const config: Config = {
     extend: {
       colors: {
         space: {
-          950: "#0B1423",
-          900: "#111B2B",
-          850: "#162233",
-          800: "#1B2A3C",
-          700: "#2B3B50",
-          500: "#4F6075"
+          950: "#07131F",
+          900: "#0D202B",
+          850: "#122A35",
+          800: "#173641",
+          700: "#28555F",
+          500: "#5B828B"
         },
-        pulse: "#3F8D9A",
-        cyanline: "#58BCCB",
+        pulse: "#FFD91A",
+        cyanline: "#3A838D",
         mint: "#20C98B",
-        ember: "#FFD400",
+        ember: "#FFD91A",
         danger: "#FF5C7A",
         ink: "#F7FAFF",
-        muted: "#9AA8BB"
+        muted: "#A9BBC3"
       },
       fontFamily: {
         display: ["Space Grotesk", "Inter", "ui-sans-serif", "system-ui"],
@@ -31,7 +31,7 @@ const config: Config = {
         mono: ["JetBrains Mono", "ui-monospace", "SFMono-Regular", "monospace"]
       },
       boxShadow: {
-        pulse: "0 0 0 1px rgba(63,141,154,0.32), 0 0 34px rgba(88,188,203,0.22)",
+        pulse: "0 0 0 1px rgba(255,217,26,0.32), 0 0 34px rgba(58,131,141,0.26)",
         panel: "0 16px 44px rgba(0,0,0,0.28)"
       }
     }
