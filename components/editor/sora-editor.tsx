@@ -2226,8 +2226,26 @@ function DraggableClipCard({
     >
       <button className="block w-full text-left" onClick={onSelect}>
         <div className="visual-frame h-28 w-full" data-visual={clip.visual}>
-          <div className="relative z-10 flex h-full items-end p-2 text-xs font-semibold">
+          {clip.thumbnailUrl ? (
+            <img
+              src={clip.thumbnailUrl}
+              alt={clip.name}
+              className="absolute inset-0 z-[1] h-full w-full object-cover"
+            />
+          ) : clip.url ? (
+            <video
+              src={clip.url}
+              muted
+              playsInline
+              preload="metadata"
+              className="pointer-events-none absolute inset-0 z-[1] h-full w-full object-cover"
+            />
+          ) : null}
+          <div className="relative z-10 flex h-full items-end justify-between gap-2 p-2 text-xs font-semibold">
             <span className="rounded-md bg-black/45 px-2 py-1">{clip.duration}s</span>
+            {clip.url ? (
+              <span className="rounded-md bg-black/45 px-2 py-1 text-[10px] text-ink/80">Preview</span>
+            ) : null}
           </div>
         </div>
         <div className="mt-2 min-w-0">
