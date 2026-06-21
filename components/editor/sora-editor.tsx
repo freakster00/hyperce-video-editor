@@ -2122,14 +2122,14 @@ function GenerationQueue({
                     style={{ width: `${Math.round(job.progress * 100)}%` }}
                   />
                 </div>
-                <div className="mt-auto flex items-center justify-between gap-3 pt-3">
+                <div className="mt-auto grid grid-cols-[auto_minmax(0,1fr)] items-center gap-3 pt-3">
                   <span className="font-mono text-[11px] text-muted">
                     {Math.round(job.progress * 100)}%
                   </span>
-                  <div className="flex flex-wrap justify-end gap-2">
+                  <div className="flex min-w-0 items-center justify-end gap-2">
                     {job.resultClipId ? (
                       <button
-                        className="command-button h-8 text-xs"
+                        className="command-button queue-action-button"
                         onClick={() => onAddClip(job.resultClipId as string)}
                       >
                         <Plus size={14} />
@@ -2138,7 +2138,7 @@ function GenerationQueue({
                     ) : null}
                     {["pending", "queued", "processing"].includes(job.status) ? (
                       <button
-                        className="command-button h-8 text-xs"
+                        className="command-button queue-action-button"
                         onClick={() => dispatch({ type: "CANCEL_JOB", jobId: job.id })}
                       >
                         <X size={14} />
@@ -2146,13 +2146,13 @@ function GenerationQueue({
                       </button>
                     ) : null}
                     {job.status === "failed" || job.status === "cancelled" || job.status === "timed_out" ? (
-                      <button className="command-button h-8 text-xs" onClick={() => onRetryJob(job)}>
+                      <button className="command-button queue-action-button" onClick={() => onRetryJob(job)}>
                         <Wand2 size={14} />
                         Retry
                       </button>
                     ) : null}
                     <button
-                      className="icon-button h-8 w-8"
+                      className="icon-button queue-icon-button"
                       title="Delete job"
                       onClick={() => dispatch({ type: "DELETE_JOB", jobId: job.id })}
                     >

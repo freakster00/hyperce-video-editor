@@ -187,6 +187,21 @@ button {
   border-color: rgba(58, 131, 141, 0.68);
 }
 
+.queue-action-button {
+  height: 36px;
+  min-height: 36px;
+  padding: 0 14px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.queue-icon-button {
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  min-height: 36px;
+}
+
 .pulse-active {
   animation: generation-pulse 2.4s ease-in-out infinite;
 }
