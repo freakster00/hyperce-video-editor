@@ -2,7 +2,7 @@ import type { GenerationSettings, SavedPrompt } from "@/lib/types";
 
 export const defaultGenerationSettings: GenerationSettings = {
   resolution: "720p",
-  duration: 5,
+  duration: 4,
   aspectRatio: "16:9",
   fps: 24,
   motionStrength: 0.7,
@@ -19,7 +19,7 @@ export const promptPresets: SavedPrompt[] = [
     id: "preset_aerial_reveal",
     text: "A cinematic aerial reveal over a mountain ridge at golden hour, slow pan left, detailed clouds, film grain, natural lens flare.",
     tags: ["cinematic", "aerial", "nature"],
-    settings: { duration: 6, resolution: "1080p", aspectRatio: "16:9", motionStrength: 0.65 },
+    settings: { duration: 8, resolution: "1080p", aspectRatio: "16:9", motionStrength: 0.65 },
     thumbnailUrl: null,
     usageCount: 0,
     createdAt: "2026-06-01T00:00:00.000Z"
@@ -28,7 +28,7 @@ export const promptPresets: SavedPrompt[] = [
     id: "preset_neon_rain",
     text: "A lone figure walks through heavy rain on a neon-lit street, reflections on wet asphalt, shallow depth of field, smooth dolly push-in.",
     tags: ["cyberpunk", "rain", "dolly"],
-    settings: { duration: 5, resolution: "720p", aspectRatio: "9:16", motionStrength: 0.82 },
+    settings: { duration: 4, resolution: "720p", aspectRatio: "9:16", motionStrength: 0.82 },
     thumbnailUrl: null,
     usageCount: 0,
     createdAt: "2026-06-01T00:00:00.000Z"
@@ -46,7 +46,7 @@ export const promptPresets: SavedPrompt[] = [
     id: "preset_ocean_macro",
     text: "Macro slow motion of sea foam washing over black volcanic sand, soft morning light, delicate texture, calming natural camera drift.",
     tags: ["macro", "ocean", "slow motion"],
-    settings: { duration: 7, resolution: "720p", aspectRatio: "16:9", motionStrength: 0.42 },
+    settings: { duration: 12, resolution: "720p", aspectRatio: "16:9", motionStrength: 0.42 },
     thumbnailUrl: null,
     usageCount: 0,
     createdAt: "2026-06-01T00:00:00.000Z"

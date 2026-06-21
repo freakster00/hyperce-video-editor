@@ -94,6 +94,14 @@ function now() {
   return new Date().toISOString();
 }
 
+function normalizeGenerationDuration(duration: number | undefined) {
+  const allowed = [4, 8, 12];
+  const requested = duration ?? 4;
+  return allowed.reduce((best, value) =>
+    Math.abs(value - requested) < Math.abs(best - requested) ? value : best
+  );
+}
+
 function dimsFor(settings: GenerationSettings) {
   const landscape = settings.aspectRatio === "16:9";
   const portrait = settings.aspectRatio === "9:16";
@@ -200,7 +208,8 @@ function normalizeState(state: AppState): AppState {
       isQueueOpen: hasActiveJobs ? (state.ui?.isQueueOpen ?? fallback.ui.isQueueOpen) : false,
       generationSettings: {
         ...fallback.ui.generationSettings,
-        ...state.ui?.generationSettings
+        ...state.ui?.generationSettings,
+        duration: normalizeGenerationDuration(state.ui?.generationSettings?.duration)
       }
     }
   };
@@ -286,7 +295,11 @@ export function editorReducer(state: AppState, action: EditorAction): AppState {
           ...state.ui,
           generationSettings: {
             ...state.ui.generationSettings,
-            ...action.settings
+            ...action.settings,
+            duration:
+              action.settings.duration === undefined
+                ? state.ui.generationSettings.duration
+                : normalizeGenerationDuration(action.settings.duration)
           }
         }
       };
@@ -356,7 +369,7 @@ export function editorReducer(state: AppState, action: EditorAction): AppState {
         jobs: state.jobs.filter((job) => ["pending", "queued", "processing"].includes(job.status))
       });
     case "SELECT_CLIP":
-      return { ...state, ui: { ...state.ui, selectedClipId: action.clipId } };
+      return { ...state, ui: { ...state.ui, selectedClipId: action.clipId, selectedTimelineClipId: null } };
     case "SELECT_TIMELINE_CLIP": {
       const track = findTrackForPlacement(state.timeline, action.placementId);
       const placement = track?.clips.find((clip) => clip.id === action.placementId);

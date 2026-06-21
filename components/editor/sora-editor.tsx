@@ -66,6 +66,7 @@ import type {
 } from "@/lib/types";
 
 const PIXELS_PER_SECOND = 84;
+const SUPPORTED_DURATIONS = [4, 8, 12] as const;
 
 function cx(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
@@ -689,7 +690,17 @@ export function SoraEditor() {
                   type: "TOGGLE_QUEUE"
                 })
               }
-              onEditClip={() => selectedClip && setEditTarget({ clipId: selectedClip.id })}
+              onEditClip={() => {
+                if (selectedTimeline) {
+                  setEditTarget({
+                    clipId: selectedTimeline.placement.clipId,
+                    placementId: selectedTimeline.placement.id,
+                    trackId: selectedTimeline.track.id
+                  });
+                  return;
+                }
+                if (selectedClip) setEditTarget({ clipId: selectedClip.id });
+              }}
               onUseFrame={(frameDataUrl) => {
                 setImageDataUrl(frameDataUrl);
                 setImageName("Captured frame");
@@ -1111,15 +1122,22 @@ function GenerationSettingsPanel({
       </div>
 
       <label className="block space-y-2 text-xs text-muted">
-        Duration: {settings.duration}s
-        <input
-          type="range"
-          min={2}
-          max={20}
-          value={settings.duration}
-          onChange={(event) => update({ duration: Number(event.target.value) })}
-          className="w-full accent-cyanline"
-        />
+        Duration
+        <div className="grid grid-cols-3 gap-2">
+          {SUPPORTED_DURATIONS.map((duration) => (
+            <button
+              key={duration}
+              type="button"
+              className={cx(
+                "command-button h-9 text-sm",
+                settings.duration === duration && "command-primary"
+              )}
+              onClick={() => update({ duration })}
+            >
+              {duration}s
+            </button>
+          ))}
+        </div>
       </label>
 
       <label className="block space-y-2 text-xs text-muted">
@@ -1418,34 +1436,54 @@ function PreviewPanel({
 }) {
   const { state, dispatch } = useEditor();
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const selectedPlacement = useMemo(() => {
-    if (!clip || !state.ui.selectedTimelineClipId) return null;
-    for (const track of state.timeline.tracks) {
-      const placement = track.clips.find((item) => item.id === state.ui.selectedTimelineClipId);
-      if (placement?.clipId === clip.id) return placement;
-    }
-    return null;
-  }, [clip, state.timeline.tracks, state.ui.selectedTimelineClipId]);
+  const timelineMode = Boolean(state.ui.selectedTimelineClipId);
+  const clipMap = useMemo(() => new Map(state.clips.map((item) => [item.id, item])), [state.clips]);
+  const timelineItems = useMemo(() => {
+    return state.timeline.tracks
+      .flatMap((track, trackIndex) =>
+        track.clips.flatMap((placement, placementIndex) => {
+          const source = clipMap.get(placement.clipId);
+          if (!source) return [];
+          const duration = getClipDuration(placement, source);
+          return [{ track, trackIndex, placement, placementIndex, clip: source, duration }];
+        })
+      )
+      .sort((a, b) => a.placement.startTime - b.placement.startTime || a.trackIndex - b.trackIndex);
+  }, [clipMap, state.timeline.tracks]);
 
-  const clipPreviewStart = selectedPlacement?.trimStart ?? 0;
-  const clipPreviewEnd = clip
-    ? Math.max(clipPreviewStart, clip.duration - (selectedPlacement?.trimEnd ?? 0))
+  const activeTimelineItem = useMemo(() => {
+    if (!timelineMode) return null;
+    const playhead = state.timeline.playheadPosition;
+    return (
+      timelineItems.find((item) => {
+        const start = item.placement.startTime;
+        const end = start + item.duration;
+        return playhead >= start && playhead < end;
+      }) ?? null
+    );
+  }, [state.timeline.playheadPosition, timelineItems, timelineMode]);
+
+  const previewClip = timelineMode ? activeTimelineItem?.clip ?? null : clip;
+  const previewPlacement = timelineMode ? activeTimelineItem?.placement ?? null : null;
+  const clipPreviewStart = previewPlacement?.trimStart ?? 0;
+  const clipPreviewEnd = previewClip
+    ? Math.max(clipPreviewStart, previewClip.duration - (previewPlacement?.trimEnd ?? 0))
     : 0;
 
   function videoTimeForPlayhead(playheadPosition: number) {
-    if (!clip) return 0;
+    if (!previewClip) return 0;
 
-    if (selectedPlacement) {
-      const relativeTime = playheadPosition - selectedPlacement.startTime;
-      return clamp(selectedPlacement.trimStart + relativeTime, clipPreviewStart, clipPreviewEnd);
+    if (previewPlacement) {
+      const relativeTime = playheadPosition - previewPlacement.startTime;
+      return clamp(previewPlacement.trimStart + relativeTime, clipPreviewStart, clipPreviewEnd);
     }
 
-    return clamp(playheadPosition, 0, clip.duration);
+    return clamp(playheadPosition, 0, previewClip.duration);
   }
 
   function playheadForVideoTime(videoTime: number) {
-    if (selectedPlacement) {
-      return selectedPlacement.startTime + clamp(videoTime - selectedPlacement.trimStart, 0, getClipDuration(selectedPlacement, clip!));
+    if (previewPlacement && previewClip) {
+      return previewPlacement.startTime + clamp(videoTime - previewPlacement.trimStart, 0, getClipDuration(previewPlacement, previewClip));
     }
 
     return videoTime;
@@ -1453,8 +1491,8 @@ function PreviewPanel({
 
   function syncVideoToPlayhead() {
     const video = videoRef.current;
-    if (!video || !clip?.url) return;
-    if (!selectedPlacement) return;
+    if (!video || !previewClip?.url) return;
+    if (timelineMode && !previewPlacement) return;
 
     const nextTime = videoTimeForPlayhead(state.timeline.playheadPosition);
     if (Number.isFinite(nextTime) && Math.abs(video.currentTime - nextTime) > 0.18) {
@@ -1464,46 +1502,62 @@ function PreviewPanel({
 
   function syncPlayheadFromVideo() {
     const video = videoRef.current;
-    if (!video || !clip?.url) return;
-    if (!selectedPlacement) return;
+    if (!video || !previewClip?.url) return;
+    if (timelineMode && !previewPlacement) return;
 
-    if (selectedPlacement && video.currentTime < clipPreviewStart) {
+    if (previewPlacement && video.currentTime < clipPreviewStart) {
       video.currentTime = clipPreviewStart;
-      dispatch({ type: "SET_PLAYHEAD", seconds: selectedPlacement.startTime });
+      dispatch({ type: "SET_PLAYHEAD", seconds: previewPlacement.startTime });
       return;
     }
 
-    if (selectedPlacement && video.currentTime >= clipPreviewEnd) {
+    if (previewPlacement && video.currentTime >= clipPreviewEnd) {
       video.currentTime = clipPreviewEnd;
+      const nextPlayhead = previewPlacement.startTime + getClipDuration(previewPlacement, previewClip);
       dispatch({
         type: "SET_PLAYHEAD",
-        seconds: selectedPlacement.startTime + getClipDuration(selectedPlacement, clip)
+        seconds: nextPlayhead
       });
-      dispatch({ type: "SET_PLAYING", playing: false });
+      if (nextPlayhead >= state.timeline.totalDuration) {
+        dispatch({ type: "SET_PLAYING", playing: false });
+      }
       return;
     }
 
     dispatch({ type: "SET_PLAYHEAD", seconds: playheadForVideoTime(video.currentTime) });
   }
 
+  function handleVideoEnded() {
+    if (previewPlacement && previewClip) {
+      const nextPlayhead = previewPlacement.startTime + getClipDuration(previewPlacement, previewClip);
+      dispatch({ type: "SET_PLAYHEAD", seconds: nextPlayhead });
+      if (nextPlayhead >= state.timeline.totalDuration) {
+        dispatch({ type: "SET_PLAYING", playing: false });
+      }
+      return;
+    }
+
+    dispatch({ type: "SET_PLAYING", playing: false });
+  }
+
   useEffect(() => {
     syncVideoToPlayhead();
   }, [
-    clip?.id,
-    clip?.url,
+    previewClip?.id,
+    previewClip?.url,
     clipPreviewEnd,
     clipPreviewStart,
-    selectedPlacement?.id,
-    selectedPlacement?.startTime,
+    previewPlacement?.id,
+    previewPlacement?.startTime,
     state.timeline.playheadPosition
   ]);
 
   useEffect(() => {
     const video = videoRef.current;
-    if (!video || !clip?.url) return;
+    if (!video || !previewClip?.url) return;
 
     if (isPlaying) {
-      if (selectedPlacement && video.currentTime >= clipPreviewEnd) {
+      if (previewPlacement && video.currentTime >= clipPreviewEnd) {
         video.currentTime = clipPreviewStart;
       }
       void video.play().catch(() => {
@@ -1512,11 +1566,36 @@ function PreviewPanel({
     } else {
       video.pause();
     }
-  }, [clip?.url, clipPreviewEnd, clipPreviewStart, dispatch, isPlaying, selectedPlacement?.id]);
+  }, [clipPreviewEnd, clipPreviewStart, dispatch, isPlaying, previewClip?.url, previewPlacement?.id]);
+
+  useEffect(() => {
+    if (!isPlaying || !timelineMode || activeTimelineItem) return;
+    const timer = window.setInterval(() => {
+      dispatch({
+        type: "SET_PLAYHEAD",
+        seconds:
+          state.timeline.playheadPosition >= state.timeline.totalDuration
+            ? state.timeline.totalDuration
+            : state.timeline.playheadPosition + 0.2
+      });
+      if (state.timeline.playheadPosition >= state.timeline.totalDuration) {
+        dispatch({ type: "SET_PLAYING", playing: false });
+      }
+    }, 200);
+
+    return () => window.clearInterval(timer);
+  }, [
+    activeTimelineItem,
+    dispatch,
+    isPlaying,
+    state.timeline.playheadPosition,
+    state.timeline.totalDuration,
+    timelineMode
+  ]);
 
   function captureFrame() {
     const video = videoRef.current;
-    if (!video || !clip?.url) {
+    if (!video || !previewClip?.url) {
       dispatch({
         type: "SHOW_TOAST",
         toast: { kind: "warning", message: "A playable video is needed to capture a frame." }
@@ -1525,8 +1604,8 @@ function PreviewPanel({
     }
 
     const canvas = document.createElement("canvas");
-    canvas.width = video.videoWidth || clip.width;
-    canvas.height = video.videoHeight || clip.height;
+    canvas.width = video.videoWidth || previewClip.width;
+    canvas.height = video.videoHeight || previewClip.height;
     const context = canvas.getContext("2d");
     if (!context) return;
     context.drawImage(video, 0, 0, canvas.width, canvas.height);
@@ -1538,10 +1617,14 @@ function PreviewPanel({
       <div className="mb-3 flex items-center justify-between">
         <div className="min-w-0">
           <h1 className="truncate font-display text-lg font-semibold tracking-normal">
-            {clip ? clip.name : "Preview"}
+            {timelineMode ? "Timeline Preview" : previewClip ? previewClip.name : "Preview"}
           </h1>
           <p className="truncate text-xs text-muted">
-            {clip ? `${clip.width}x${clip.height} - ${clip.duration}s - ${clip.fps}fps` : "Select a clip from the gallery"}
+            {previewClip
+              ? `${previewClip.width}x${previewClip.height} - ${previewClip.duration}s - ${previewClip.fps}fps`
+              : timelineMode
+                ? "Move the playhead over a timeline clip"
+                : "Select a clip from the gallery"}
           </p>
         </div>
         <div className="flex gap-2">
@@ -1576,31 +1659,35 @@ function PreviewPanel({
       <div className="grid h-[calc(100%-58px)] min-h-0 grid-cols-[minmax(0,1fr)_190px] gap-3 max-lg:grid-cols-1">
         <div
           className="visual-frame flex min-h-0 items-start p-4"
-          data-visual={clip?.visual ?? "studio"}
+          data-visual={previewClip?.visual ?? "studio"}
         >
-          {clip?.url ? (
+          {previewClip?.url ? (
             <video
               ref={videoRef}
-              src={clip.url}
+              src={previewClip.url}
               controls
               className="absolute inset-0 z-0 h-full w-full object-contain"
-              poster={clip.thumbnailUrl ?? undefined}
+              poster={previewClip.thumbnailUrl ?? undefined}
               onLoadedMetadata={syncVideoToPlayhead}
               onPlay={() => dispatch({ type: "SET_PLAYING", playing: true })}
-              onPause={() => dispatch({ type: "SET_PLAYING", playing: false })}
+              onPause={(event) => {
+                if (!event.currentTarget.ended) {
+                  dispatch({ type: "SET_PLAYING", playing: false });
+                }
+              }}
               onSeeking={syncPlayheadFromVideo}
               onSeeked={syncPlayheadFromVideo}
               onTimeUpdate={syncPlayheadFromVideo}
-              onEnded={() => dispatch({ type: "SET_PLAYING", playing: false })}
+              onEnded={handleVideoEnded}
             />
           ) : null}
           <div className="pointer-events-none relative z-10 max-w-2xl">
             <div className="mb-2 inline-flex items-center gap-2 rounded-lg border border-white/10 bg-black/45 px-3 py-2 text-xs">
-              <span className={cx("status-dot", clip?.status ?? "ready")} />
-              {clip ? "Clip preview" : "No clip selected"}
+              <span className={cx("status-dot", previewClip?.status ?? "ready")} />
+              {timelineMode ? "Timeline preview" : previewClip ? "Clip preview" : "No clip selected"}
             </div>
             <p className="line-clamp-2 text-sm leading-6 text-ink/90">
-              {clip?.prompt ??
+              {previewClip?.prompt ??
                 "Generated clips and timeline playback appear here after a prompt is submitted."}
             </p>
           </div>
@@ -1628,7 +1715,7 @@ function PreviewPanel({
             <PanelLeft size={16} />
             Queue
           </button>
-          <button className="command-button mt-2 w-full" disabled={!clip?.url} onClick={captureFrame}>
+          <button className="command-button mt-2 w-full" disabled={!previewClip?.url} onClick={captureFrame}>
             <ImageIcon size={16} />
             Use Frame
           </button>
@@ -1667,6 +1754,20 @@ function TimelinePanel({
           Timeline
         </div>
         <div className="flex items-center gap-2">
+          <label className="hidden items-center gap-2 text-xs text-muted md:flex">
+            Current
+            <input
+              className="field h-8 w-20 px-2 font-mono text-xs"
+              type="number"
+              min={0}
+              max={Math.max(0, state.timeline.totalDuration)}
+              step={0.1}
+              value={Number(state.timeline.playheadPosition.toFixed(1))}
+              onChange={(event) =>
+                dispatch({ type: "SET_PLAYHEAD", seconds: Number(event.target.value) })
+              }
+            />
+          </label>
           <button
             className="icon-button"
             title={state.ui.isPlaying ? "Pause timeline" : "Play timeline"}

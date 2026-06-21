@@ -240,7 +240,12 @@ export function secondsForOpenAi(duration: number) {
 }
 
 export function secondsForAzure(duration: number) {
-  return Math.max(1, Math.round(duration));
+  const allowed = [4, 8, 12];
+  return Number(
+    allowed.reduce((best, value) =>
+      Math.abs(value - duration) < Math.abs(best - duration) ? value : best
+    )
+  );
 }
 
 export function secondsForFoundryVideo(duration: number) {
@@ -268,10 +273,16 @@ export function sizeForFoundryVideo(
 }
 
 export function normalizeSettings(settings?: Partial<GenerationSettings>): GenerationSettings {
+  const allowedDurations = [4, 8, 12];
+  const requestedDuration = settings?.duration ?? 4;
+  const duration = allowedDurations.reduce((best, value) =>
+    Math.abs(value - requestedDuration) < Math.abs(best - requestedDuration) ? value : best
+  );
+
   return {
     resolution: settings?.resolution ?? "720p",
     aspectRatio: settings?.aspectRatio ?? "16:9",
-    duration: settings?.duration ?? 5,
+    duration,
     fps: settings?.fps ?? 24,
     motionStrength: settings?.motionStrength ?? 0.7,
     seed: settings?.seed ?? null,
