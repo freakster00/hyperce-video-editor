@@ -44,7 +44,7 @@ import {
   Wand2,
   X
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { type PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
   buildInitialState,
   createClipFromPrompt,
@@ -1436,6 +1436,7 @@ function PreviewPanel({
 }) {
   const { state, dispatch } = useEditor();
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const [localPreviewTime, setLocalPreviewTime] = useState(0);
   const timelineMode = Boolean(state.ui.selectedTimelineClipId);
   const clipMap = useMemo(() => new Map(state.clips.map((item) => [item.id, item])), [state.clips]);
   const timelineItems = useMemo(() => {
@@ -1469,6 +1470,8 @@ function PreviewPanel({
   const clipPreviewEnd = previewClip
     ? Math.max(clipPreviewStart, previewClip.duration - (previewPlacement?.trimEnd ?? 0))
     : 0;
+  const previewDuration = timelineMode ? state.timeline.totalDuration : previewClip?.duration ?? 0;
+  const previewTime = timelineMode ? state.timeline.playheadPosition : localPreviewTime;
 
   function videoTimeForPlayhead(playheadPosition: number) {
     if (!previewClip) return 0;
@@ -1524,7 +1527,11 @@ function PreviewPanel({
       return;
     }
 
-    dispatch({ type: "SET_PLAYHEAD", seconds: playheadForVideoTime(video.currentTime) });
+    if (timelineMode) {
+      dispatch({ type: "SET_PLAYHEAD", seconds: playheadForVideoTime(video.currentTime) });
+    } else {
+      setLocalPreviewTime(video.currentTime);
+    }
   }
 
   function handleVideoEnded() {
@@ -1538,6 +1545,23 @@ function PreviewPanel({
     }
 
     dispatch({ type: "SET_PLAYING", playing: false });
+  }
+
+  function seekPreview(seconds: number) {
+    const safeSeconds = clamp(seconds, 0, previewDuration);
+    if (timelineMode) {
+      dispatch({ type: "SET_PLAYHEAD", seconds: safeSeconds });
+      return;
+    }
+
+    const video = videoRef.current;
+    if (video) video.currentTime = safeSeconds;
+    setLocalPreviewTime(safeSeconds);
+  }
+
+  function playPreviewFromStart() {
+    seekPreview(0);
+    dispatch({ type: "SET_PLAYING", playing: true });
   }
 
   useEffect(() => {
@@ -1567,6 +1591,11 @@ function PreviewPanel({
       video.pause();
     }
   }, [clipPreviewEnd, clipPreviewStart, dispatch, isPlaying, previewClip?.url, previewPlacement?.id]);
+
+  useEffect(() => {
+    if (timelineMode) return;
+    setLocalPreviewTime(0);
+  }, [previewClip?.id, timelineMode]);
 
   useEffect(() => {
     if (!isPlaying || !timelineMode || activeTimelineItem) return;
@@ -1657,39 +1686,72 @@ function PreviewPanel({
       </div>
 
       <div className="grid h-[calc(100%-58px)] min-h-0 grid-cols-[minmax(0,1fr)_190px] gap-3 max-lg:grid-cols-1">
-        <div
-          className="visual-frame flex min-h-0 items-start p-4"
-          data-visual={previewClip?.visual ?? "studio"}
-        >
-          {previewClip?.url ? (
-            <video
-              ref={videoRef}
-              src={previewClip.url}
-              controls
-              className="absolute inset-0 z-0 h-full w-full object-contain"
-              poster={previewClip.thumbnailUrl ?? undefined}
-              onLoadedMetadata={syncVideoToPlayhead}
-              onPlay={() => dispatch({ type: "SET_PLAYING", playing: true })}
-              onPause={(event) => {
-                if (!event.currentTarget.ended) {
-                  dispatch({ type: "SET_PLAYING", playing: false });
-                }
-              }}
-              onSeeking={syncPlayheadFromVideo}
-              onSeeked={syncPlayheadFromVideo}
-              onTimeUpdate={syncPlayheadFromVideo}
-              onEnded={handleVideoEnded}
-            />
-          ) : null}
-          <div className="pointer-events-none relative z-10 max-w-2xl">
-            <div className="mb-2 inline-flex items-center gap-2 rounded-lg border border-white/10 bg-black/45 px-3 py-2 text-xs">
-              <span className={cx("status-dot", previewClip?.status ?? "ready")} />
-              {timelineMode ? "Timeline preview" : previewClip ? "Clip preview" : "No clip selected"}
+        <div className="grid min-h-0 grid-rows-[minmax(0,1fr)_48px] overflow-hidden rounded-lg border border-space-700 bg-space-900">
+          <div
+            className="visual-frame flex min-h-0 items-start rounded-none p-4"
+            data-visual={previewClip?.visual ?? "studio"}
+          >
+            {previewClip?.url ? (
+              <video
+                ref={videoRef}
+                src={previewClip.url}
+                className="absolute inset-0 z-0 h-full w-full object-contain"
+                poster={previewClip.thumbnailUrl ?? undefined}
+                onLoadedMetadata={syncVideoToPlayhead}
+                onPlay={() => dispatch({ type: "SET_PLAYING", playing: true })}
+                onPause={(event) => {
+                  if (timelineMode) return;
+                  if (!event.currentTarget.ended) {
+                    dispatch({ type: "SET_PLAYING", playing: false });
+                  }
+                }}
+                onSeeking={syncPlayheadFromVideo}
+                onSeeked={syncPlayheadFromVideo}
+                onTimeUpdate={syncPlayheadFromVideo}
+                onEnded={handleVideoEnded}
+              />
+            ) : null}
+            <div className="pointer-events-none relative z-10 max-w-2xl">
+              <div className="mb-2 inline-flex items-center gap-2 rounded-lg border border-white/10 bg-black/45 px-3 py-2 text-xs">
+                <span className={cx("status-dot", previewClip?.status ?? "ready")} />
+                {timelineMode ? "Timeline preview" : previewClip ? "Clip preview" : "No clip selected"}
+              </div>
+              <p className="line-clamp-2 text-sm leading-6 text-ink/90">
+                {previewClip?.prompt ??
+                  "Generated clips and timeline playback appear here after a prompt is submitted."}
+              </p>
             </div>
-            <p className="line-clamp-2 text-sm leading-6 text-ink/90">
-              {previewClip?.prompt ??
-                "Generated clips and timeline playback appear here after a prompt is submitted."}
-            </p>
+          </div>
+          <div className="grid grid-cols-[auto_auto_minmax(0,1fr)_auto] items-center gap-3 border-t border-space-700 bg-space-950 px-3">
+            <button
+              className="icon-button h-8 w-8"
+              title="Play from start"
+              disabled={!previewClip?.url}
+              onClick={playPreviewFromStart}
+            >
+              <SkipBack size={15} />
+            </button>
+            <button
+              className="icon-button h-8 w-8"
+              title={isPlaying ? "Pause" : "Play"}
+              disabled={!previewClip?.url}
+              onClick={() => dispatch({ type: "SET_PLAYING" })}
+            >
+              {isPlaying ? <Pause size={15} /> : <Play size={15} />}
+            </button>
+            <input
+              className="w-full accent-cyanline"
+              type="range"
+              min={0}
+              max={Math.max(0.1, previewDuration)}
+              step={0.1}
+              value={previewTime}
+              disabled={!previewClip?.url && !timelineMode}
+              onChange={(event) => seekPreview(Number(event.target.value))}
+            />
+            <span className="whitespace-nowrap font-mono text-xs text-muted">
+              {formatTime(previewTime)} / {formatTime(previewDuration)}
+            </span>
           </div>
         </div>
 
@@ -1733,6 +1795,8 @@ function TimelinePanel({
   onEditClip: (clipId: string, placementId?: string, trackId?: string) => void;
 }) {
   const { state, dispatch } = useEditor();
+  const timelineSurfaceRef = useRef<HTMLDivElement | null>(null);
+  const isScrubbingTimelineRef = useRef(false);
   const clipMap = useMemo(() => new Map(state.clips.map((clip) => [clip.id, clip])), [state.clips]);
   const width = Math.max(820, (state.timeline.totalDuration + 4) * PIXELS_PER_SECOND);
   const selected = useMemo(() => {
@@ -1745,6 +1809,40 @@ function TimelinePanel({
     }
     return null;
   }, [clipMap, state.timeline.tracks, state.ui.selectedTimelineClipId]);
+
+  function pointerSeconds(event: ReactPointerEvent<HTMLDivElement>) {
+    const surface = timelineSurfaceRef.current;
+    if (!surface) return state.timeline.playheadPosition;
+    const rect = surface.getBoundingClientRect();
+    const x = event.clientX - rect.left - 64;
+    return clamp(x / PIXELS_PER_SECOND, 0, state.timeline.totalDuration);
+  }
+
+  function shouldIgnoreTimelineScrub(target: EventTarget | null) {
+    return target instanceof HTMLElement
+      ? Boolean(target.closest("button,input,select,textarea,.timeline-clip"))
+      : true;
+  }
+
+  function handleTimelinePointerDown(event: ReactPointerEvent<HTMLDivElement>) {
+    if (shouldIgnoreTimelineScrub(event.target)) return;
+    isScrubbingTimelineRef.current = true;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    dispatch({ type: "SET_PLAYHEAD", seconds: pointerSeconds(event) });
+  }
+
+  function handleTimelinePointerMove(event: ReactPointerEvent<HTMLDivElement>) {
+    if (!isScrubbingTimelineRef.current) return;
+    dispatch({ type: "SET_PLAYHEAD", seconds: pointerSeconds(event) });
+  }
+
+  function handleTimelinePointerEnd(event: ReactPointerEvent<HTMLDivElement>) {
+    if (!isScrubbingTimelineRef.current) return;
+    isScrubbingTimelineRef.current = false;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  }
 
   return (
     <section className="grid min-h-0 grid-rows-[44px_minmax(0,1fr)_auto] overflow-hidden bg-space-900">
@@ -1783,7 +1881,15 @@ function TimelinePanel({
       </div>
 
       <div className="overflow-auto">
-        <div className="relative min-h-full" style={{ width }}>
+        <div
+          ref={timelineSurfaceRef}
+          className="relative min-h-full cursor-crosshair touch-none"
+          style={{ width }}
+          onPointerDown={handleTimelinePointerDown}
+          onPointerMove={handleTimelinePointerMove}
+          onPointerUp={handleTimelinePointerEnd}
+          onPointerCancel={handleTimelinePointerEnd}
+        >
           <div className="timeline-ruler sticky top-0 z-10 flex h-9 items-end border-b border-space-700 pl-16">
             {Array.from({ length: Math.ceil(width / PIXELS_PER_SECOND) + 1 }).map((_, index) => (
               <div
