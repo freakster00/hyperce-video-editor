@@ -1436,6 +1436,8 @@ function PreviewPanel({
 }) {
   const { state, dispatch } = useEditor();
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const timelineVideoRefs = useRef<Map<string, HTMLVideoElement>>(new Map());
+  const playheadRef = useRef(0);
   const [localPreviewTime, setLocalPreviewTime] = useState(0);
   const timelineMode = Boolean(state.ui.selectedTimelineClipId);
   const clipMap = useMemo(() => new Map(state.clips.map((item) => [item.id, item])), [state.clips]);
@@ -1464,14 +1466,50 @@ function PreviewPanel({
     );
   }, [state.timeline.playheadPosition, timelineItems, timelineMode]);
 
+  const nextTimelineItem = useMemo(() => {
+    if (!timelineMode) return null;
+    return timelineItems.find((item) => item.placement.startTime > state.timeline.playheadPosition) ?? null;
+  }, [state.timeline.playheadPosition, timelineItems, timelineMode]);
+
   const previewClip = timelineMode ? activeTimelineItem?.clip ?? null : clip;
   const previewPlacement = timelineMode ? activeTimelineItem?.placement ?? null : null;
+  const previewPlacementId = previewPlacement?.id ?? null;
   const clipPreviewStart = previewPlacement?.trimStart ?? 0;
   const clipPreviewEnd = previewClip
     ? Math.max(clipPreviewStart, previewClip.duration - (previewPlacement?.trimEnd ?? 0))
     : 0;
   const previewDuration = timelineMode ? state.timeline.totalDuration : previewClip?.duration ?? 0;
   const previewTime = timelineMode ? state.timeline.playheadPosition : localPreviewTime;
+  const canPreviewPlay = timelineMode
+    ? timelineItems.some((item) => Boolean(item.clip.url))
+    : Boolean(previewClip?.url);
+
+  useEffect(() => {
+    playheadRef.current = state.timeline.playheadPosition;
+  }, [state.timeline.playheadPosition]);
+
+  function setTimelineVideoRef(placementId: string, node: HTMLVideoElement | null) {
+    if (node) {
+      timelineVideoRefs.current.set(placementId, node);
+      return;
+    }
+    timelineVideoRefs.current.delete(placementId);
+  }
+
+  function activePreviewVideo() {
+    if (timelineMode) {
+      return previewPlacement ? timelineVideoRefs.current.get(previewPlacement.id) ?? null : null;
+    }
+
+    return videoRef.current;
+  }
+
+  function pauseInactiveTimelineVideos() {
+    if (!timelineMode) return;
+    for (const [placementId, video] of timelineVideoRefs.current.entries()) {
+      if (placementId !== previewPlacement?.id) video.pause();
+    }
+  }
 
   function videoTimeForPlayhead(playheadPosition: number) {
     if (!previewClip) return 0;
@@ -1493,18 +1531,19 @@ function PreviewPanel({
   }
 
   function syncVideoToPlayhead() {
-    const video = videoRef.current;
+    const video = activePreviewVideo();
     if (!video || !previewClip?.url) return;
     if (timelineMode && !previewPlacement) return;
 
     const nextTime = videoTimeForPlayhead(state.timeline.playheadPosition);
-    if (Number.isFinite(nextTime) && Math.abs(video.currentTime - nextTime) > 0.18) {
+    const allowedDrift = timelineMode && isPlaying ? 0.9 : 0.18;
+    if (Number.isFinite(nextTime) && Math.abs(video.currentTime - nextTime) > allowedDrift) {
       video.currentTime = nextTime;
     }
   }
 
   function syncPlayheadFromVideo() {
-    const video = videoRef.current;
+    const video = activePreviewVideo();
     if (!video || !previewClip?.url) return;
     if (timelineMode && !previewPlacement) return;
 
@@ -1565,32 +1604,89 @@ function PreviewPanel({
   }
 
   useEffect(() => {
-    syncVideoToPlayhead();
+    pauseInactiveTimelineVideos();
+    if (!isPlaying || !timelineMode) {
+      syncVideoToPlayhead();
+    }
   }, [
+    isPlaying,
     previewClip?.id,
     previewClip?.url,
     clipPreviewEnd,
     clipPreviewStart,
     previewPlacement?.id,
     previewPlacement?.startTime,
-    state.timeline.playheadPosition
+    state.timeline.playheadPosition,
+    timelineMode
   ]);
 
   useEffect(() => {
-    const video = videoRef.current;
-    if (!video || !previewClip?.url) return;
+    if (!timelineMode || !nextTimelineItem?.clip.url) return;
+    const secondsUntilNext = nextTimelineItem.placement.startTime - state.timeline.playheadPosition;
+    if (secondsUntilNext > 1.2) return;
+
+    const nextVideo = timelineVideoRefs.current.get(nextTimelineItem.placement.id);
+    if (!nextVideo) return;
+    const nextStart = nextTimelineItem.placement.trimStart;
+    if (nextVideo.readyState === 0) nextVideo.load();
+    if (Number.isFinite(nextVideo.duration) && Math.abs(nextVideo.currentTime - nextStart) > 0.12) {
+      nextVideo.currentTime = nextStart;
+    }
+  }, [nextTimelineItem?.placement.id, state.timeline.playheadPosition, timelineMode]);
+
+  useEffect(() => {
+    pauseInactiveTimelineVideos();
+    const video = activePreviewVideo();
+    if (!video || !previewClip?.url) {
+      if (!isPlaying) {
+        for (const timelineVideo of timelineVideoRefs.current.values()) timelineVideo.pause();
+      }
+      return;
+    }
 
     if (isPlaying) {
       if (previewPlacement && video.currentTime >= clipPreviewEnd) {
         video.currentTime = clipPreviewStart;
+      }
+      if (timelineMode) {
+        syncVideoToPlayhead();
       }
       void video.play().catch(() => {
         dispatch({ type: "SET_PLAYING", playing: false });
       });
     } else {
       video.pause();
+      for (const timelineVideo of timelineVideoRefs.current.values()) timelineVideo.pause();
     }
-  }, [clipPreviewEnd, clipPreviewStart, dispatch, isPlaying, previewClip?.url, previewPlacement?.id]);
+  }, [clipPreviewEnd, clipPreviewStart, dispatch, isPlaying, previewClip?.url, previewPlacementId]);
+
+  useEffect(() => {
+    if (!isPlaying || !timelineMode) return;
+    let animationFrame = 0;
+    const startedAt = performance.now();
+    const startPlayhead = playheadRef.current;
+
+    function tick(nowTime: number) {
+      const nextPlayhead = Math.min(
+        state.timeline.totalDuration,
+        startPlayhead + (nowTime - startedAt) / 1000
+      );
+      if (Math.abs(nextPlayhead - playheadRef.current) >= 0.1) {
+        playheadRef.current = nextPlayhead;
+        dispatch({ type: "SET_PLAYHEAD", seconds: nextPlayhead });
+      }
+
+      if (nextPlayhead >= state.timeline.totalDuration) {
+        dispatch({ type: "SET_PLAYING", playing: false });
+        return;
+      }
+
+      animationFrame = window.requestAnimationFrame(tick);
+    }
+
+    animationFrame = window.requestAnimationFrame(tick);
+    return () => window.cancelAnimationFrame(animationFrame);
+  }, [dispatch, isPlaying, state.timeline.totalDuration, timelineMode]);
 
   useEffect(() => {
     if (timelineMode) return;
@@ -1623,7 +1719,7 @@ function PreviewPanel({
   ]);
 
   function captureFrame() {
-    const video = videoRef.current;
+    const video = activePreviewVideo();
     if (!video || !previewClip?.url) {
       dispatch({
         type: "SHOW_TOAST",
@@ -1686,16 +1782,46 @@ function PreviewPanel({
       </div>
 
       <div className="grid h-[calc(100%-58px)] min-h-0 grid-cols-[minmax(0,1fr)_190px] gap-3 max-lg:grid-cols-1">
-        <div className="grid min-h-0 grid-rows-[minmax(0,1fr)_48px] overflow-hidden rounded-lg border border-space-700 bg-space-900">
+        <div className="preview-shell">
           <div
-            className="visual-frame flex min-h-0 items-start rounded-none p-4"
+            className="visual-frame preview-stage flex min-h-0 items-start rounded-none p-4"
             data-visual={previewClip?.visual ?? "studio"}
           >
-            {previewClip?.url ? (
+            {timelineMode ? (
+              timelineItems.map((item) =>
+                item.clip.url ? (
+                  <video
+                    key={item.placement.id}
+                    ref={(node) => setTimelineVideoRef(item.placement.id, node)}
+                    src={item.clip.url}
+                    preload="auto"
+                    playsInline
+                    className={cx(
+                      "preview-video transition-opacity duration-75",
+                      item.placement.id === previewPlacement?.id ? "opacity-100" : "opacity-0"
+                    )}
+                    poster={item.clip.thumbnailUrl ?? undefined}
+                    onLoadedMetadata={() => {
+                      if (item.placement.id === previewPlacement?.id) syncVideoToPlayhead();
+                    }}
+                    onPlay={() => {
+                      if (item.placement.id === previewPlacement?.id) {
+                        dispatch({ type: "SET_PLAYING", playing: true });
+                      }
+                    }}
+                    onEnded={() => {
+                      if (item.placement.id === previewPlacement?.id) handleVideoEnded();
+                    }}
+                  />
+                ) : null
+              )
+            ) : previewClip?.url ? (
               <video
                 ref={videoRef}
                 src={previewClip.url}
-                className="absolute inset-0 z-0 h-full w-full object-contain"
+                preload="auto"
+                playsInline
+                className="preview-video"
                 poster={previewClip.thumbnailUrl ?? undefined}
                 onLoadedMetadata={syncVideoToPlayhead}
                 onPlay={() => dispatch({ type: "SET_PLAYING", playing: true })}
@@ -1722,11 +1848,11 @@ function PreviewPanel({
               </p>
             </div>
           </div>
-          <div className="grid grid-cols-[auto_auto_minmax(0,1fr)_auto] items-center gap-3 border-t border-space-700 bg-space-950 px-3">
+          <div className="preview-controls">
             <button
               className="icon-button h-8 w-8"
               title="Play from start"
-              disabled={!previewClip?.url}
+              disabled={!canPreviewPlay}
               onClick={playPreviewFromStart}
             >
               <SkipBack size={15} />
@@ -1734,7 +1860,7 @@ function PreviewPanel({
             <button
               className="icon-button h-8 w-8"
               title={isPlaying ? "Pause" : "Play"}
-              disabled={!previewClip?.url}
+              disabled={!canPreviewPlay}
               onClick={() => dispatch({ type: "SET_PLAYING" })}
             >
               {isPlaying ? <Pause size={15} /> : <Play size={15} />}
@@ -1746,7 +1872,7 @@ function PreviewPanel({
               max={Math.max(0.1, previewDuration)}
               step={0.1}
               value={previewTime}
-              disabled={!previewClip?.url && !timelineMode}
+              disabled={!canPreviewPlay}
               onChange={(event) => seekPreview(Number(event.target.value))}
             />
             <span className="whitespace-nowrap font-mono text-xs text-muted">
